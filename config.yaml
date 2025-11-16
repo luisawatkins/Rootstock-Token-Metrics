@@ -1,0 +1,90 @@
+# Rootstock Token Metrics Visualization Tool Configuration
+
+# Rootstock Network Configuration
+rootstock:
+  # Main RPC endpoints
+  mainnet:
+    rpc_url: "https://public-node.rsk.co"
+    chain_id: 30
+    explorer_api: "https://api.rsksmart.com"
+    
+  testnet:
+    rpc_url: "https://public-node.testnet.rsk.co"
+    chain_id: 31
+    explorer_api: "https://api-testnet.rsksmart.com"
+    
+  # Default network to use
+  default_network: "mainnet"
+
+# Data Collection Settings
+data_collection:
+  # Maximum blocks to fetch in one request
+  max_blocks_per_request: 1000
+  
+  # Default time range (in days)
+  default_time_range: 30
+  
+  # Cache settings
+  enable_cache: true
+  cache_ttl_seconds: 300  # 5 minutes
+  
+  # Rate limiting
+  requests_per_second: 10
+  
+# Visualization Settings
+visualization:
+  # Default chart theme
+  theme: "plotly_dark"
+  
+  # Color schemes
+  color_schemes:
+    default: ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7"]
+    price: ["#00D632", "#FF3838"]
+    volume: ["#3498DB", "#2980B9"]
+    
+  # Chart dimensions
+  default_width: 1200
+  default_height: 600
+  
+  # Export settings
+  export:
+    dpi: 300
+    format: "png"  # Options: png, svg, pdf
+    
+# Token Addresses (Example popular tokens on Rootstock)
+tokens:
+  # Wrapped RBTC
+  WRBTC:
+    address: "0x542fDA317318eBF1d3DEAf76E0b632741A7e677d"
+    decimals: 18
+    symbol: "WRBTC"
+    
+  # RIF Token
+  RIF:
+    address: "0x2acc95758f8b5F583470ba265eb685a8f45fc9d5"
+    decimals: 18
+    symbol: "RIF"
+    
+  # USDT
+  USDT:
+    address: "0xef213441a85df4d7acbdae0cf78004e1e486bb96"
+    decimals: 18
+    symbol: "rUSDT"
+    
+  # DOC (Dollar on Chain)
+  DOC:
+    address: "0xe700691da7b9851f2f35f8b8182c69c53ccad9db"
+    decimals: 18
+    symbol: "DOC"
+
+# Web Interface Settings
+web_interface:
+  host: "127.0.0.1"
+  port: 8050
+  debug: false
+  
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/rsk_token_metrics.log"
