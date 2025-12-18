@@ -85,7 +85,8 @@ rskPython/
 
 - Python 3.8 or higher (tested up to 3.14)
 - pip package manager
-- Access to Rootstock RPC endpoint (public nodes available)
+- Access to a Rootstock RPC endpoint via an RSK API provider (no public nodes)
+- Environment variables configured for RPC access: `RSK_API_URL`/`RSK_RPC_URL` and `RSK_API_KEY`
 - Internet connection for price data APIs
 
 ### Step 1: Clone the Repository
@@ -116,17 +117,22 @@ pip install -e .  # Development installation
 pip install .     # Regular installation
 ```
 
-### Step 4: Configure Settings (Optional)
+### Step 4: Configure RPC
 
-The default `config.yaml` is pre-configured with public RPC endpoints and popular tokens. You can customize it if needed:
+Set environment variables to use your RSK API RPC. The tool prefers env vars and will avoid public nodes.
 
-```yaml
-rootstock:
-  mainnet:
-    rpc_url: "https://public-node.rsk.co"
-  testnet:
-    rpc_url: "https://public-node.testnet.rsk.co"
+```bash
+# Windows (PowerShell)
+$env:RSK_API_URL = "https://your-rsk-api-base/"
+$env:RSK_API_KEY = "your_api_key"
+# If your provider gives a full URL (including the key), use this instead:
+$env:RSK_RPC_URL = "https://your-rsk-api-url-with-key"
 ```
+
+Notes:
+- If `RSK_API_URL` contains `{API_KEY}`, it will be replaced using `RSK_API_KEY`.
+- If `RSK_API_URL` ends with `/` and `RSK_API_KEY` is set, the key is appended.
+- If no RPC is configured, the tool will operate in a degraded mode and clearly label charts as using simulated data; configure the env vars and try again to see real data.
 
 ##  Quick Start
 
@@ -153,6 +159,8 @@ python -m src.interfaces.web --network mainnet --port 8050
 ```
 
 Then open your browser and navigate to `http://localhost:8050`
+
+If the dashboard shows warnings about simulated data, configure `RSK_API_URL`/`RSK_RPC_URL` and `RSK_API_KEY`, then restart and try again.
 
 ### Using as Python Library
 
@@ -307,14 +315,17 @@ The `config.yaml` file controls various aspects of the tool:
 ```yaml
 rootstock:
   mainnet:
-    rpc_url: "https://public-node.rsk.co"
+    rpc_url: ""
     chain_id: 30
   testnet:
-    rpc_url: "https://public-node.testnet.rsk.co"
+    rpc_url: ""
     chain_id: 31
   default_network: "mainnet"
 ```
 
+Environment overrides take precedence over `config.yaml`:
+- `RSK_RPC_URL` or `RSK_API_URL` + `RSK_API_KEY`
+- Public nodes are not used by default; if no RPC is set, simulated data is used with clear warnings.
 ### Data Collection Settings
 
 ```yaml

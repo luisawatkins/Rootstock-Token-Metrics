@@ -7,6 +7,7 @@ to fetch token-related data including transactions, balances, and on-chain metri
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
 from decimal import Decimal
@@ -47,9 +48,21 @@ class TokenDataFetcher:
         self.config = self._load_config(config_path)
         self.network = network
         
-        # Initialize Web3 connection
+        env_rpc_url = os.environ.get("RSK_RPC_URL") or os.environ.get("RSK_API_URL")
+        api_key = os.environ.get("RSK_API_KEY")
         rpc_url = self.config["rootstock"][network]["rpc_url"]
-        self.w3 = Web3(Web3.HTTPProvider(rpc_url))
+        if env_rpc_url:
+            if api_key and "{API_KEY}" in env_rpc_url:
+                rpc_url = env_rpc_url.replace("{API_KEY}", api_key)
+            elif api_key and env_rpc_url.endswith("/"):
+                rpc_url = env_rpc_url + api_key
+            else:
+                rpc_url = env_rpc_url
+        if rpc_url.startswith("https://public-node.rsk.co") or rpc_url.startswith("https://public-node.testnet.rsk.co"):
+            logger.warning("RPC no configurado con RSK API; evitando nodo público y usando datos simulados. Configure RSK_API_URL/RSK_RPC_URL y RSK_API_KEY y reintente para ver datos reales.")
+            self.w3 = Web3()
+        else:
+            self.w3 = Web3(Web3.HTTPProvider(rpc_url))
         
         # Initialize cache
         cache_ttl = self.config["data_collection"]["cache_ttl_seconds"]
@@ -60,6 +73,8 @@ class TokenDataFetcher:
         
         logger.info(f"TokenDataFetcher initialized for {network}")
         logger.info(f"Connected to Rootstock: {self.w3.is_connected()}")
+        if not self.w3.is_connected():
+            logger.warning("Conexión RPC no disponible; se utilizarán datos simulados cuando sea necesario. Configure RSK_API_URL/RSK_RPC_URL y RSK_API_KEY y reintente para ver datos reales.")
     
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file."""
@@ -100,6 +115,9 @@ class TokenDataFetcher:
         """Make a rate-limited RPC call."""
         if params is None:
             params = []
+        if not self.w3.is_connected():
+            logger.warning("RPC no disponible; devolviendo datos simulados. Configure RSK_API_URL/RSK_RPC_URL y RSK_API_KEY y reintente para ver datos reales.")
+            return None
         
         payload = {
             "jsonrpc": "2.0",
@@ -317,10 +335,10 @@ class TokenDataFetcher:
                             volume_df.columns = ["date", "volume", "transaction_count"]
                             return volume_df
             except Exception as e:
-                logger.warning(f"Could not fetch real volume data: {e}")
+                logger.warning(f"No se pudo obtener volumen real: {e}")
             
             # Fallback: Generate realistic volume data based on price data
-            logger.info("Using simulated volume data based on price patterns")
+            logger.warning("Usando datos de volumen SIMULADOS basados en patrones de precio. Configure RSK_API_URL/RSK_RPC_URL y RSK_API_KEY y reintente para ver datos reales.")
             
             # Get price data to base volume on
             from .price_fetcher import RealPriceFetcher
@@ -365,6 +383,7 @@ class TokenDataFetcher:
                     # Transaction count (volume / avg tx size)
                     tx_counts.append(int(volume / 1000) + np.random.randint(10, 50))
                 
+                logger.warning("Generando volumen SIMULADO por falta de datos reales. Configure RSK_API_URL/RSK_RPC_URL y RSK_API_KEY y reintente para ver datos reales.")
                 return pd.DataFrame({
                     "date": dates,
                     "volume": volumes,
@@ -440,10 +459,10 @@ class TokenDataFetcher:
                         
                         return pd.DataFrame(holder_balances[:top_n])
             except Exception as e:
-                logger.warning(f"Could not fetch real holder data: {e}")
+                logger.warning(f"No se pudo obtener distribución real de holders: {e}")
             
             # Fallback: Generate realistic holder distribution
-            logger.info("Using simulated holder distribution based on typical patterns")
+            logger.warning("Usando distribución de holders SIMULADA basada en patrones típicos. Configure RSK_API_URL/RSK_RPC_URL y RSK_API_KEY y reintente para ver datos reales.")
             
             import numpy as np
             
@@ -535,7 +554,7 @@ class TokenDataFetcher:
                 logger.info(f"Fetched real price data for {token_symbol or token_address[:10]}")
                 return price_df
             else:
-                logger.warning(f"No price data available, using fallback for {token_address[:10]}")
+                logger.warning(f"Sin datos de precio, usando FALLBACK SIMULADO para {token_address[:10]}. Configure RSK_API_URL/RSK_RPC_URL y RSK_API_KEY y reintente para ver datos reales.")
                 # Fallback to mock data if real data not available
                 import numpy as np
                 dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
@@ -549,13 +568,14 @@ class TokenDataFetcher:
                 })
                 
         except Exception as e:
-            logger.error(f"Error fetching price data: {e}")
+            logger.error(f"Error al obtener datos de precio: {e}")
             # Return mock data as fallback
             import numpy as np
             dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
             prices = np.random.randn(days).cumsum() + 100
             prices = np.maximum(prices, 10)
             
+            logger.warning("Usando precios SIMULADOS por error en fuentes reales. Configure RSK_API_URL/RSK_RPC_URL y RSK_API_KEY y reintente para ver datos reales.")
             return pd.DataFrame({
                 "date": dates,
                 "price": prices,
