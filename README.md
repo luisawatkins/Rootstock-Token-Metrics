@@ -61,22 +61,30 @@ A comprehensive Python-based data visualization tool for analyzing Rootstock (RS
 ```
 rskPython/
 ├── src/
+│   ├── __init__.py
 │   ├── data/
-│   │   ├── fetcher.py      # Blockchain data fetching
-│   │   └── processor.py    # Data processing and analysis
-│   ├── visualization/
-│   │   ├── engine.py        # Core visualization engine
-│   │   └── charts.py        # Chart factory and types
+│   │   ├── __init__.py
+│   │   ├── fetcher.py
+│   │   ├── price_fetcher.py
+│   │   └── processor.py
 │   ├── interfaces/
-│   │   ├── cli.py          # Command-line interface
-│   │   └── web.py          # Web dashboard
-│   └── utils/              # Utility functions
-├── examples/               # Example scripts
-├── tests/                  # Unit tests
-├── docs/                   # Documentation
-├── config.yaml            # Configuration file
-├── requirements.txt       # Python dependencies
-└── README.md             # This file
+│   │   ├── __init__.py
+│   │   ├── cli.py
+│   │   └── web.py
+│   └── visualization/
+│       ├── __init__.py
+│       ├── charts.py
+│       └── engine.py
+├── examples/
+│   ├── advanced_analysis.py
+│   ├── automated_reporting.py
+│   └── basic_usage.py
+├── .gitignore
+├── config.yaml
+├── main.py
+├── requirements.txt
+├── setup.py
+└── README.md
 ```
 
 ## 🔧 Installation

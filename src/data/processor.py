@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import numpy as np
-from scipy import stats
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +199,19 @@ class DataProcessor:
             DataFrame with anomaly column added
         """
         if method == "zscore":
-            z_scores = np.abs(stats.zscore(df[column].fillna(df[column].mean())))
+            series = pd.to_numeric(df[column], errors="coerce")
+            mean_val = series.mean()
+            if pd.isna(mean_val):
+                df["is_anomaly"] = False
+                return df
+
+            filled = series.fillna(mean_val)
+            std_val = filled.std(ddof=0)
+            if std_val == 0 or pd.isna(std_val):
+                df["is_anomaly"] = False
+                return df
+
+            z_scores = np.abs((filled - mean_val) / std_val)
             df["is_anomaly"] = z_scores > threshold
         elif method == "iqr":
             Q1 = df[column].quantile(0.25)
