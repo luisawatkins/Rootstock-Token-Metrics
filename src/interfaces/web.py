@@ -95,7 +95,7 @@ class TokenMetricsDashboard:
                                 options=[
                                     {"label": f"{token['symbol']} ({name})", 
                                      "value": token["address"]}
-                                    for name, token in self.config.get("tokens", {}).items()
+                                    for name, token in (self.config.get("testnet_tokens", {}) if self.network == "testnet" else self.config.get("tokens", {})).items() if name in ("WRBTC", "RIF")
                                 ],
                                 placeholder="Select a token or enter address",
                                 className="mb-3"

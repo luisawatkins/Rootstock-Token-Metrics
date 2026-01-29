@@ -105,9 +105,12 @@ class RealPriceFetcher:
                 "BPRO": "0x440cd83c160de5c96ddb20246815ea44c7abbca8",
             }
         else:
-            # Testnet addresses would go here
+            # Testnet addresses
             self.known_pools = {}
-            self.tokens = {}
+            self.tokens = {
+                "RIF": "0x19f64674D8a5b4e652319F5e239EFd3bc969a1FE",
+                "tRIF": "0x19f64674D8a5b4e652319F5e239EFd3bc969a1FE"
+            }
         
         # Cache for price data (5 minute TTL)
         self.price_cache = TTLCache(maxsize=100, ttl=300)

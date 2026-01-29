@@ -77,6 +77,14 @@ tokens:
     decimals: 18
     symbol: "DOC"
 
+# Testnet Token Addresses
+testnet_tokens:
+  # tRIF Token
+  RIF:
+    address: "0x19f64674D8a5b4e652319F5e239EFd3bc969a1FE"
+    decimals: 18
+    symbol: "tRIF"
+
 # Web Interface Settings
 web_interface:
   host: "127.0.0.1"

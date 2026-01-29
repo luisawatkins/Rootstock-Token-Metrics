@@ -52,17 +52,31 @@ class TokenDataFetcher:
         api_key = os.environ.get("RSK_API_KEY")
         rpc_url = self.config["rootstock"][network]["rpc_url"]
         if env_rpc_url:
-            if api_key and "{API_KEY}" in env_rpc_url:
-                rpc_url = env_rpc_url.replace("{API_KEY}", api_key)
-            elif api_key and env_rpc_url.endswith("/"):
-                rpc_url = env_rpc_url + api_key
+            if api_key:
+                if "{API_KEY}" in env_rpc_url:
+                    rpc_url = env_rpc_url.replace("{API_KEY}", api_key)
+                elif env_rpc_url.endswith("/"):
+                    rpc_url = env_rpc_url + api_key
+                else:
+                    if api_key not in env_rpc_url:
+                        rpc_url = f"{env_rpc_url}/{api_key}"
+                    else:
+                        rpc_url = env_rpc_url
             else:
                 rpc_url = env_rpc_url
+                
+        self.rpc_url = rpc_url
+        self.api_key = api_key
+
         if rpc_url.startswith("https://public-node.rsk.co") or rpc_url.startswith("https://public-node.testnet.rsk.co"):
             logger.warning("RPC not configured with RSK API; avoiding public node and using simulated data. Configure RSK_API_URL/RSK_RPC_URL and RSK_API_KEY and try again to see real data.")
             self.w3 = Web3()
         else:
             self.w3 = Web3(Web3.HTTPProvider(rpc_url))
+            masked_url = rpc_url
+            if api_key and len(api_key) > 4:
+                masked_url = rpc_url.replace(api_key, f"{api_key[:4]}...{api_key[-4:]}")
+            logger.info(f"Configured RPC URL: {masked_url}")
         
         # Initialize cache
         cache_ttl = self.config["data_collection"]["cache_ttl_seconds"]
@@ -72,9 +86,27 @@ class TokenDataFetcher:
         self.rate_limit = self.config["data_collection"]["requests_per_second"]
         
         logger.info(f"TokenDataFetcher initialized for {network}")
-        logger.info(f"Connected to Rootstock: {self.w3.is_connected()}")
-        if not self.w3.is_connected():
-            logger.warning("RPC connection unavailable; simulated data will be used when necessary. Configure RSK_API_URL/RSK_RPC_URL and RSK_API_KEY and try again to see real data.")
+        
+        # Check connection with explicit error handling
+        try:
+            is_connected = self.w3.is_connected()
+            logger.info(f"Connected to Rootstock: {is_connected}")
+            if not is_connected:
+                try:
+                    if self.rpc_url:
+                        test_response = requests.post(
+                            self.rpc_url, 
+                            json={"jsonrpc": "2.0", "method": "web3_clientVersion", "params": [], "id": 1},
+                            headers={"Content-Type": "application/json"}
+                        )
+                        if test_response.status_code != 200:
+                            logger.error(f"RPC Connection Failed. Status: {test_response.status_code}, Response: {test_response.text[:200]}")
+                except Exception as e:
+                    logger.error(f"RPC Connection Check Error: {str(e)}")
+                    
+                logger.warning("RPC connection unavailable; simulated data will be used when necessary. Configure RSK_API_URL/RSK_RPC_URL and RSK_API_KEY and try again to see real data.")
+        except Exception as e:
+             logger.error(f"Error checking Rootstock connection: {e}")
     
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file."""
@@ -127,7 +159,7 @@ class TokenDataFetcher:
         }
         
         response = requests.post(
-            self.config["rootstock"][self.network]["rpc_url"],
+            self.rpc_url,
             json=payload,
             headers={"Content-Type": "application/json"}
         )
