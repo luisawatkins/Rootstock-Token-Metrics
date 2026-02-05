@@ -265,7 +265,6 @@ class RealPriceFetcher:
             logger.error(f"Error fetching BTC price: {e}")
             return None
     
-    @cached(cache=lambda self: self.price_cache)
     def get_token_price_usd(
         self,
         token_address: str,

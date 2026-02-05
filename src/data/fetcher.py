@@ -181,6 +181,10 @@ class TokenDataFetcher:
             Dictionary containing token name, symbol, decimals, and total supply
         """
         try:
+            # Check connection first
+            if not self.w3.is_connected():
+                return {}
+
             # Validate and checksum the address
             token_address = Web3.to_checksum_address(token_address)
             
@@ -203,7 +207,9 @@ class TokenDataFetcher:
             return info
             
         except Exception as e:
-            logger.error(f"Error fetching token info: {e}")
+            # Suppress connection errors if we are in fallback mode
+            if "Could not discover provider" not in str(e):
+                logger.error(f"Error fetching token info: {e}")
             return {}
     
     def get_token_balance(self, token_address: str, wallet_address: str) -> Dict[str, Any]:
@@ -274,12 +280,30 @@ class TokenDataFetcher:
                 from_block = to_block - max_blocks
             
             # Get transfer events
-            transfer_filter = contract.events.Transfer.create_filter(
-                from_block=from_block,
-                to_block=to_block
-            )
-            
-            events = transfer_filter.get_all_entries()
+            # Use get_logs (stateless) instead of create_filter (stateful) to avoid 
+            # "Method not found" errors on nodes that disable eth_newFilter
+            try:
+                events = contract.events.Transfer.get_logs(
+                    fromBlock=from_block,
+                    toBlock=to_block
+                )
+            except Exception as e:
+                logger.debug(f"Direct get_logs failed, attempting fallback: {e}")
+                # Fallback using low-level eth_getLogs
+                transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)").hex()
+                logs = self.w3.eth.get_logs({
+                    "fromBlock": from_block,
+                    "toBlock": to_block,
+                    "address": token_address,
+                    "topics": [transfer_topic]
+                })
+                
+                events = []
+                for log in logs:
+                    try:
+                        events.append(contract.events.Transfer().process_log(log))
+                    except:
+                        continue
             
             # Process events
             processed_events = []
@@ -365,6 +389,8 @@ class TokenDataFetcher:
                                 "transaction_hash": "count"
                             }).reset_index()
                             volume_df.columns = ["date", "volume", "transaction_count"]
+                            # Tag as real data
+                            volume_df.attrs["data_source"] = "Real On-Chain Data"
                             return volume_df
             except Exception as e:
                 logger.warning(f"Could not fetch real volume: {e}")
@@ -394,6 +420,8 @@ class TokenDataFetcher:
                 avg_tx_size = price_df["price"].mean() * 100  # Rough estimate
                 volume_df["transaction_count"] = (volume_df["volume"] / avg_tx_size).astype(int)
                 volume_df["transaction_count"] = volume_df["transaction_count"].clip(lower=10)  # Min 10 txs
+                # Tag as simulated data
+                volume_df.attrs["data_source"] = "Simulated (Based on Price)"
                 return volume_df
             else:
                 # Generate synthetic volume data
@@ -416,11 +444,14 @@ class TokenDataFetcher:
                     tx_counts.append(int(volume / 1000) + np.random.randint(10, 50))
                 
                 logger.warning("Generating SIMULATED volume due to lack of real data. Configure RSK_API_URL/RSK_RPC_URL and RSK_API_KEY and try again to see real data.")
-                return pd.DataFrame({
+                df = pd.DataFrame({
                     "date": dates,
                     "volume": volumes,
                     "transaction_count": tx_counts
                 })
+                # Tag as simulated data
+                df.attrs["data_source"] = "Simulated (Synthetic)"
+                return df
             
         except Exception as e:
             logger.error(f"Error calculating transaction volume: {e}")

@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 def cli(ctx, config, network, verbose):
     """Rootstock Token Metrics Visualization Tool CLI"""
     # Setup logging
-    log_level = logging.DEBUG if verbose else logging.INFO
+    # Default to ERROR to keep output clean unless verbose is requested
+    log_level = logging.DEBUG if verbose else logging.ERROR
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -49,9 +50,10 @@ def cli(ctx, config, network, verbose):
     ctx.obj["config"] = config
     ctx.obj["network"] = network
     
-    console.print(f"[bold green]Rootstock Token Metrics Tool[/bold green]")
-    console.print(f"Network: [cyan]{network}[/cyan]")
-    console.print(f"Config: [cyan]{config}[/cyan]\n")
+    if verbose:
+        console.print(f"[bold green]Rootstock Token Metrics Tool[/bold green]")
+        console.print(f"Network: [cyan]{network}[/cyan]")
+        console.print(f"Config: [cyan]{config}[/cyan]\n")
 
 
 @cli.command()
@@ -118,6 +120,11 @@ def volume(ctx, token_address, days, interval, export):
         table.add_row("Max Volume", f"{volume_df['volume'].max():,.2f}")
         table.add_row("Min Volume", f"{volume_df['volume'].min():,.2f}")
         table.add_row("Total Transactions", str(volume_df['transaction_count'].sum()))
+        
+        # Show data source
+        source = volume_df.attrs.get("data_source", "Unknown")
+        source_style = "green" if "Real" in source else "yellow"
+        table.add_row("Data Source", source, style=source_style)
         
         console.print(table)
         
