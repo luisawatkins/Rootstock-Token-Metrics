@@ -48,7 +48,11 @@ class TokenDataFetcher:
         self.config = self._load_config(config_path)
         self.network = network
         
-        env_rpc_url = os.environ.get("RSK_RPC_URL") or os.environ.get("RSK_API_URL")
+        # Support multiple environment variable names for convenience
+        env_rpc_url = (os.environ.get("RSK_RPC_URL") or 
+                      os.environ.get("RSK_API_URL") or 
+                      os.environ.get("RSK_API_RPC_URL"))
+                      
         api_key = os.environ.get("RSK_API_KEY")
         rpc_url = self.config["rootstock"][network]["rpc_url"]
         if env_rpc_url:
@@ -67,6 +71,13 @@ class TokenDataFetcher:
                 
         self.rpc_url = rpc_url
         self.api_key = api_key
+
+        # Check for network mismatch
+        if "testnet" in rpc_url and network == "mainnet":
+            logger.warning(f"Configuration Warning: You are using a Testnet RPC URL ({rpc_url}) with Mainnet configuration. "
+                           "This will likely result in errors. Please use '--network testnet' or provide a Mainnet RPC URL.")
+        elif "mainnet" in rpc_url and network == "testnet": # Simple heuristic, "mainnet" might not be in all mainnet URLs
+             logger.warning(f"Configuration Warning: You might be using a Mainnet RPC URL with Testnet configuration.")
 
         if rpc_url.startswith("https://public-node.rsk.co") or rpc_url.startswith("https://public-node.testnet.rsk.co"):
             logger.warning("RPC not configured with RSK API; avoiding public node and using simulated data. Configure RSK_API_URL/RSK_RPC_URL and RSK_API_KEY and try again to see real data.")
@@ -282,23 +293,42 @@ class TokenDataFetcher:
             # Get transfer events
             # Use get_logs (stateless) instead of create_filter (stateful) to avoid 
             # "Method not found" errors on nodes that disable eth_newFilter
+            logger.info(f"Attempting to fetch transfer events for {token_address} from {from_block} to {to_block}")
             try:
                 events = contract.events.Transfer.get_logs(
-                    fromBlock=from_block,
-                    toBlock=to_block
+                    from_block=from_block,
+                    to_block=to_block
                 )
+                logger.info(f"Direct get_logs success, got {len(events)} events")
             except Exception as e:
                 logger.debug(f"Direct get_logs failed, attempting fallback: {e}")
-                # Fallback using low-level eth_getLogs
-                transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)").hex()
+                # Ensure topics are properly formatted
+                # Web3.py usually handles this, but some nodes are picky
+                transfer_topic = Web3.keccak(text="Transfer(address,address,uint256)")
+                
+                # Convert HexBytes/bytes to hex string
+                if hasattr(transfer_topic, 'hex'):
+                    transfer_topic_str = transfer_topic.hex()
+                elif isinstance(transfer_topic, bytes):
+                    transfer_topic_str = transfer_topic.hex()
+                else:
+                    transfer_topic_str = str(transfer_topic)
+                
+                # Ensure 0x prefix
+                if not transfer_topic_str.startswith("0x"):
+                    transfer_topic_str = "0x" + transfer_topic_str
+                
+                logger.info(f"Fallback get_logs using topic: {transfer_topic_str}")
+                
                 logs = self.w3.eth.get_logs({
                     "fromBlock": from_block,
                     "toBlock": to_block,
                     "address": token_address,
-                    "topics": [transfer_topic]
+                    "topics": [transfer_topic_str]
                 })
                 
                 events = []
+                logger.info(f"Fallback get_logs returned {len(logs)} raw logs")
                 for log in logs:
                     try:
                         events.append(contract.events.Transfer().process_log(log))
@@ -363,14 +393,20 @@ class TokenDataFetcher:
                     
                     # Get block timestamps
                     timestamps = []
-                    for block_num in df["block_number"].unique()[:100]:  # Limit to 100 blocks
+                    unique_blocks = df["block_number"].unique()[:100]
+                    logger.info(f"Fetching timestamps for {len(unique_blocks)} blocks")
+                    
+                    for block_num in unique_blocks:  # Limit to 100 blocks
                         try:
-                            block = self.w3.eth.get_block(block_num)
+                            # Convert numpy int to python int
+                            block_num_int = int(block_num)
+                            block = self.w3.eth.get_block(block_num_int)
                             timestamps.append({
                                 "block_number": block_num,
                                 "timestamp": datetime.fromtimestamp(block["timestamp"])
                             })
-                        except:
+                        except Exception as e:
+                            logger.debug(f"Failed to fetch block {block_num}: {e}")
                             pass
                     
                     if timestamps:

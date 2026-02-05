@@ -17,6 +17,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import track
 from rich import print as rprint
+from dotenv import load_dotenv
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -37,6 +38,9 @@ logger = logging.getLogger(__name__)
 @click.pass_context
 def cli(ctx, config, network, verbose):
     """Rootstock Token Metrics Visualization Tool CLI"""
+    # Load environment variables
+    load_dotenv()
+    
     # Setup logging
     # Default to ERROR to keep output clean unless verbose is requested
     log_level = logging.DEBUG if verbose else logging.ERROR
@@ -44,6 +48,11 @@ def cli(ctx, config, network, verbose):
         level=log_level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
+    
+    # Silence noisy libraries even in verbose mode
+    if verbose:
+        logging.getLogger("web3").setLevel(logging.INFO)
+        logging.getLogger("urllib3").setLevel(logging.INFO)
     
     # Store config in context
     ctx.ensure_object(dict)
