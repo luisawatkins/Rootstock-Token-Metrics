@@ -175,13 +175,13 @@ def holders(ctx, token_address, top, export):
         console.print(metrics_table)
         
         # Display top holders
-        holders_table = Table(title=f"Top {min(10, len(holders_df))} Holders", show_header=True)
+        holders_table = Table(title=f"Top {min(top, len(holders_df))} Holders", show_header=True)
         holders_table.add_column("#", style="cyan")
         holders_table.add_column("Address", style="yellow")
         holders_table.add_column("Balance", style="green")
         holders_table.add_column("Percentage", style="magenta")
         
-        for i, row in holders_df.head(10).iterrows():
+        for i, row in holders_df.head(top).iterrows():
             address_short = f"{row['address'][:6]}...{row['address'][-4:]}"
             holders_table.add_row(
                 str(i + 1),

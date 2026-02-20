@@ -512,30 +512,82 @@ class TokenDataFetcher:
         try:
             token_address = Web3.to_checksum_address(token_address)
             
-            # Try to get real holder data
             try:
-                # Get recent transfer events to identify holders
+                explorer_base = None
+                if self.network == "mainnet":
+                    explorer_base = "https://rootstock.blockscout.com"
+                elif self.network == "testnet":
+                    explorer_base = "https://rootstock-testnet.blockscout.com"
+                
+                if explorer_base:
+                    token_info = self.get_token_info(token_address)
+                    decimals = token_info.get("decimals", 18) if token_info else 18
+                    total_supply_raw = token_info.get("total_supply") if token_info else None
+                    
+                    url = f"{explorer_base}/api"
+                    params = {
+                        "module": "token",
+                        "action": "getTokenHolders",
+                        "contractaddress": token_address,
+                        "page": 1,
+                        "offset": top_n
+                    }
+                    response = requests.get(url, params=params, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("status") == "1":
+                            result = data.get("result") or []
+                            holder_balances = []
+                            for item in result:
+                                address = item.get("address")
+                                value_str = item.get("value") or "0"
+                                if not address:
+                                    continue
+                                try:
+                                    value_int = int(value_str)
+                                except ValueError:
+                                    continue
+                                balance = value_int / (10 ** decimals)
+                                holder_balances.append({
+                                    "address": Web3.to_checksum_address(address),
+                                    "balance": balance
+                                })
+                            
+                            if holder_balances:
+                                if total_supply_raw:
+                                    total_supply_tokens = total_supply_raw / (10 ** decimals)
+                                else:
+                                    total_supply_tokens = sum(h["balance"] for h in holder_balances)
+                                
+                                denom = total_supply_tokens if total_supply_tokens > 0 else sum(h["balance"] for h in holder_balances)
+                                for holder in holder_balances:
+                                    holder["percentage"] = (holder["balance"] / denom * 100) if denom > 0 else 0
+                                
+                                df = pd.DataFrame(holder_balances)
+                                df = df.sort_values("balance", ascending=False).head(top_n).reset_index(drop=True)
+                                return df
+            except Exception as e:
+                logger.warning(f"Could not fetch holder distribution from explorer API: {e}")
+            
+            try:
                 current_block = self.w3.eth.block_number
                 events = self.get_transfer_events(
                     token_address,
-                    from_block=current_block - 1000,  # Reduced block range
+                    from_block=current_block - 1000,
                     to_block=current_block,
-                    limit=500  # Reduced limit
+                    limit=500
                 )
                 
                 if events and len(events) > 0:
-                    # Extract unique addresses
                     holders = set()
                     for event in events:
                         holders.add(event["from"])
                         holders.add(event["to"])
                     
-                    # Remove zero address
                     holders.discard("0x0000000000000000000000000000000000000000")
                     
-                    # Get balances for each holder (limit to speed up)
                     holder_balances = []
-                    for holder in list(holders)[:min(20, top_n)]:  # Limit to 20 for performance
+                    for holder in list(holders)[:min(20, top_n)]:
                         try:
                             balance_info = self.get_token_balance(token_address, holder)
                             if balance_info and balance_info["balance"] > 0:
@@ -544,21 +596,19 @@ class TokenDataFetcher:
                                     "balance": balance_info["balance"],
                                     "percentage": 0
                                 })
-                        except:
-                            pass
+                        except Exception:
+                            continue
                     
                     if holder_balances:
-                        # Sort by balance
                         holder_balances.sort(key=lambda x: x["balance"], reverse=True)
                         
-                        # Calculate percentages
                         total_balance = sum(h["balance"] for h in holder_balances)
                         for holder in holder_balances:
                             holder["percentage"] = (holder["balance"] / total_balance * 100) if total_balance > 0 else 0
                         
                         return pd.DataFrame(holder_balances[:top_n])
             except Exception as e:
-                logger.warning(f"Could not fetch real holder distribution: {e}")
+                logger.warning(f"Could not fetch real holder distribution from recent transfers: {e}")
             
             # Fallback: Generate realistic holder distribution
             logger.warning("Using SIMULATED holder distribution based on typical patterns. Configure RSK_API_URL/RSK_RPC_URL and RSK_API_KEY and try again to see real data.")
